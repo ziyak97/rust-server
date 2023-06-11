@@ -1,0 +1,30 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      releaseType:
+        description: "Release type (canary or release)"
+        required: true
+        type: choice
+        options:
+          - canary
+          - release
+      semanticVersionType:
+        description: "Semantic version type (major, minor, or patch)"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download binary
+        run: |
+          curl -L -o canary-deployments-rs https://github.com/ziyak97/canary-deployments-rs/releases/download/v0.0.1/canary-deployments-rs
+          chmod +x canary-deployments-rs
+      - name: Run script
+        run: ./canary-deployments-rs ${{ github.event.inputs.releaseType }} ${{ github.event.inputs.semanticVersionType }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
