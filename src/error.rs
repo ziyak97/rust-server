@@ -60,6 +60,10 @@ pub enum Error {
     #[error("an error occurred with the database")]
     Sqlx(#[from] sqlx::Error),
 
+    // one for redis
+    #[error("an error occurred with the redis")]
+    Redis(#[from] redis::RedisError),
+
     /// Return `500 Internal Server Error` on a `anyhow::Error`.
     ///
     /// `anyhow::Error` is used in a few places to capture context and backtraces
@@ -106,6 +110,7 @@ impl Error {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Sqlx(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Redis(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -148,6 +153,11 @@ impl IntoResponse for Error {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
                 log::error!("SQLx error: {:?}", e);
+            }
+
+            // one for redis errors too
+            Self::Redis(ref e) => {
+                log::error!("Redis error: {:?}", e);
             }
 
             Self::Anyhow(ref e) => {
@@ -195,6 +205,11 @@ pub trait ResultExt<T> {
         name: &str,
         f: impl FnOnce(Box<dyn DatabaseError>) -> Error,
     ) -> Result<T, Error>;
+    fn on_redis_constraint(
+        self,
+        name: &str,
+        f: impl FnOnce(redis::RedisError) -> Error,
+    ) -> Result<T, Error>;
 }
 
 impl<T, E> ResultExt<T> for Result<T, E>
@@ -210,6 +225,16 @@ where
             Error::Sqlx(sqlx::Error::Database(dbe)) if dbe.constraint() == Some(name) => {
                 map_err(dbe)
             }
+            e => e,
+        })
+    }
+    fn on_redis_constraint(
+        self,
+        name: &str,
+        map_err: impl FnOnce(redis::RedisError) -> Error,
+    ) -> Result<T, Error> {
+        self.map_err(|e| match e.into() {
+            Error::Redis(redis_error) if redis_error.to_string().contains(name) => map_err(redis_error),
             e => e,
         })
     }

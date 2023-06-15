@@ -24,6 +24,8 @@ pub struct Config {
     /// In practice, it should be a long, random string that would be infeasible to brute-force.
     #[clap(long, env)]
     pub hmac_key: String,
+
+    pub kv_url: String,
 }
 
 impl Config {
@@ -34,9 +36,13 @@ impl Config {
         let hmac_key = dotenv::var("HMAC_KEY")
             .expect("HMAC_KEY must be set");
 
+        let kv_url = dotenv::var("KV_URL")
+            .expect("KV_URL must be set");
+
         Config {
             database_url,
             hmac_key,
+            kv_url,
         }
     }
 }
