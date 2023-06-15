@@ -4,8 +4,9 @@ use axum::Router;
 use sqlx::PgPool;
 use std::{
     net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
+use redis;
 
 // Utility modules.
 
@@ -58,12 +59,14 @@ use tower_http::trace::TraceLayer;
 pub(crate) struct ApiContext {
     config: Arc<Config>,
     db: PgPool,
+    kv_store: Arc<Mutex<redis::Connection>>,
 }
 
-pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
+pub async fn serve(config: Config, db: PgPool, kv_store: redis::Connection) -> anyhow::Result<()> {
     let api_context = ApiContext {
         config: Arc::new(config),
         db,
+        kv_store: Arc::new(Mutex::new(kv_store)),
     };
 
     // Bootstrapping an API is both more intuitive with Axum than Actix-web but also
