@@ -1,18 +1,23 @@
 use crate::config::Config;
 use anyhow::Context;
 use axum::Router;
+use redis;
 use sqlx::PgPool;
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex},
 };
-use redis;
+use tower::{Service, ServiceBuilder};
+use tower_cookies::CookieManagerLayer;
 
 // Utility modules.
 
 /// Defines a common error type to use for all request handlers, compliant with the Realworld spec.
-#[path = "../error.rs"]
 mod error;
+
+mod extractor;
+
+mod users;
 
 /// Contains definitions for application-specific parameters to handler functions,
 /// such as `AuthUser` which checks for the `Authorization: Token <token>` header in the request,
@@ -99,10 +104,14 @@ pub async fn serve(config: Config, db: PgPool, kv_store: redis::Connection) -> a
 fn api_router(api_context: ApiContext) -> Router {
     // This is the order that the modules were authored in.
     Router::new()
-        // .merge(users::router())
+        .merge(users::router())
         // .merge(profiles::router())
         // .merge(articles::router())
         // Enables logging. Use `RUST_LOG=tower_http=debug`
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new()
+                .layer(CookieManagerLayer::new())
+                .layer(TraceLayer::new_for_http()),
+        )
         .with_state(api_context)
 }

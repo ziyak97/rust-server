@@ -32,12 +32,14 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("could not connect to database_url");
 
-    let kv_store_client = redis::Client::open("redis://default:6893e3bf2a6a4dcda9733a93d4bf3621@prompt-marmoset-37787.upstash.io:37787")?;
+    let kv_store_client = redis::Client::open(&*config.kv_url)?;
     let kv_store = kv_store_client.get_connection()?;
 
     // This embeds database migrations in the application binary so we can ensure the database
     // is migrated correctly on startup
+    log::info!("Running database migrations");
     sqlx::migrate!().run(&db).await?;
+    log::info!("Database migrations complete");
 
     // Finally, we spin up our API.
     http::serve(config, db, kv_store).await?;
